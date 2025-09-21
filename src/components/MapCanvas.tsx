@@ -5,15 +5,15 @@ import {
   ReactFlow,
   Node,
   Edge,
-  Controls,
-  Background,
   useNodesState,
   useEdgesState,
   ConnectionMode,
   NodeTypes,
-} from "reactflow";
-import "reactflow/dist/style.css";
-import { ELK } from "elkjs/lib/elk.bundled.js";
+} from "@reactflow/core";
+import { Background } from "@reactflow/background";
+import { Controls } from "@reactflow/controls";
+import "@reactflow/core/dist/style.css";
+import ELK from "elkjs/lib/elk.bundled.js";
 
 const elk = new ELK();
 

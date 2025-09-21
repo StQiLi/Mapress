@@ -39,7 +39,7 @@ export default function ExportButtons({ nodes, edges }: ExportButtonsProps) {
         return;
       }
 
-      const dataUrl = await html2canvas(canvas as HTMLElement, {
+      const canvasElement = await html2canvas(canvas as HTMLElement, {
         backgroundColor: "#ffffff",
         scale: 2,
         useCORS: true,
@@ -48,7 +48,7 @@ export default function ExportButtons({ nodes, edges }: ExportButtonsProps) {
       
       const link = document.createElement("a");
       link.download = `mapress-export-${new Date().toISOString().split("T")[0]}.png`;
-      link.href = dataUrl;
+      link.href = canvasElement.toDataURL();
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
