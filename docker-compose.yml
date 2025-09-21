@@ -1,0 +1,23 @@
+version: "3.8"
+services:
+  mcp-fetch-adapter:
+    build: ./infra/mcp-fetch-adapter
+    container_name: mcp-fetch-adapter
+    environment:
+      NODE_ENV: production
+    ports:
+      - "7071:3000"   # -> http://localhost:7071/fetch
+    depends_on: []
+    restart: unless-stopped
+
+  mcp-search-adapter:
+    build: ./infra/mcp-search-adapter
+    container_name: mcp-search-adapter
+    environment:
+      NODE_ENV: production
+      # Example: choose a search MCP that needs an API key:
+      # BING_API_KEY: ${BING_API_KEY}
+    ports:
+      - "7072:3000"   # -> http://localhost:7072/search
+    depends_on: []
+    restart: unless-stopped

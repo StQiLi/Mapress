@@ -37,10 +37,21 @@ Output JSON:
 3–4 sentence neutral summary, then 3–5 key fact bullets. Do not invent URLs.`;
 
 export async function callOpenRouterJSON(messages: any[], system?: string) {
+  console.log("🤖 LLM Request starting...");
+  
   const key = process.env.OPENROUTER_API_KEY;
-  if (!key) throw new Error("Missing OPENROUTER_API_KEY");
+  if (!key) {
+    console.error("❌ Missing OPENROUTER_API_KEY");
+    throw new Error("Missing OPENROUTER_API_KEY");
+  }
+  
   const model = process.env.MODEL; // set to Grok-4-fast ID in env
-  if (!model) throw new Error("Missing MODEL");
+  if (!model) {
+    console.error("❌ Missing MODEL");
+    throw new Error("Missing MODEL");
+  }
+
+  console.log("🔧 LLM Config:", { model, hasKey: !!key, systemLength: system?.length || 0, messagesCount: messages.length });
 
   const body: any = {
     model,
@@ -48,6 +59,14 @@ export async function callOpenRouterJSON(messages: any[], system?: string) {
     response_format: { type: "json_object" },
     temperature: 0.1,
   };
+  
+  console.log("📤 Sending request to OpenRouter...");
+  console.log("📤 Request body preview:", {
+    model: body.model,
+    messagesCount: body.messages.length,
+    systemLength: body.messages[0]?.content?.length || 0,
+    userContentLength: body.messages[1]?.content?.length || 0
+  });
   
   const res = await fetch(OPENROUTER, {
     method: "POST",
@@ -60,7 +79,24 @@ export async function callOpenRouterJSON(messages: any[], system?: string) {
     body: JSON.stringify(body),
   });
   
-  if (!res.ok) throw new Error(`LLM ${res.status} ${await res.text()}`);
+  console.log("📥 LLM Response status:", res.status, res.statusText);
+  
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error("❌ LLM request failed:", res.status, errorText);
+    throw new Error(`LLM ${res.status} ${errorText}`);
+  }
+  
   const data = await res.json();
-  return data.choices?.[0]?.message?.content;
+  console.log("📋 LLM Response data:", {
+    choices: data.choices?.length || 0,
+    usage: data.usage,
+    model: data.model
+  });
+  
+  const content = data.choices?.[0]?.message?.content;
+  console.log("✅ LLM Response content length:", content?.length || 0);
+  console.log("📝 LLM Response preview:", content?.substring(0, 200) + "...");
+  
+  return content;
 }
