@@ -14,27 +14,47 @@ export default function Home() {
   const [nodes, setNodes] = useState<any[]>([]);
   const [edges, setEdges] = useState<any[]>([]);
   const [selectedNode, setSelectedNode] = useState<any>(null);
-  const [mockMode, setMockMode] = useState(true);
+
+  const handleNodeSelect = useCallback((node: any) => {
+    // Toggle: if clicking the same node, deselect it
+    if (selectedNode && selectedNode.id === node.id) {
+      setSelectedNode(null);
+    } else {
+      setSelectedNode(node);
+    }
+  }, [selectedNode]);
 
   const handleGenerate = useCallback(async () => {
     if (!query.trim()) return;
     
     setIsLoading(true);
-    setStatus("Starting...");
+    setStatus("search");
     setSources([]);
     setNodes([]);
     setEdges([]);
     setSelectedNode(null);
 
     try {
-      const response = await fetch("/api/stream", {
+      // Simulate progress steps
+      setStatus("search");
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      setStatus("fetch");
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      setStatus("cluster");
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      setStatus("layout");
+      
+      const response = await fetch("/api/map", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          query: query.trim(), 
-          mock: mockMode,
-          maxUrls: 8,
-          maxNodes: 16 
+          prompt: query.trim(),
+          recencyDays: 7,
+          maxSources: 8,
+          depth: 2
         }),
       });
 
@@ -42,55 +62,50 @@ export default function Home() {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              
-              switch (data.type) {
-                case "status":
-                  setStatus(data.step);
-                  break;
-                case "sources":
-                  setSources(data.urls);
-                  break;
-                case "partialOutline":
-                  // Show categories as they're generated
-                  break;
-                case "graph":
-                  setNodes(data.nodes);
-                  setEdges(data.edges);
-                  break;
-                case "error":
-                  throw new Error(data.message);
-              }
-            } catch (e) {
-              console.error("Error parsing SSE data:", e);
-            }
-          }
+      const data = await response.json();
+      
+      // Transform the new format to the old format for compatibility
+      const transformedNodes = Object.values(data.nodes).map((node: any, index: number) => ({
+        id: node.id,
+        type: "category",
+        position: { x: index * 250, y: index * 100 },
+        data: {
+          title: node.title,
+          summary: node.summary,
+          sources: node.citations || [],
+          facts: [], // New format doesn't have nested facts
+          // Pass through the new verbose fields
+          keyPoints: node.keyPoints || [],
+          context: node.context || "",
+          implications: node.implications || "",
+          relatedTopics: node.relatedTopics || []
         }
-      }
+      }));
+
+      const transformedEdges = data.edges.map((edge: any, index: number) => ({
+        id: `edge-${index}`,
+        source: edge.from,
+        target: edge.to,
+        label: edge.label || ""
+      }));
+
+      setNodes(transformedNodes);
+      setEdges(transformedEdges);
+      setStatus("done");
+      
+      // Extract sources from citations
+      const allSources = Object.values(data.nodes).flatMap((node: any) => 
+        (node.citations || []).map((citation: any) => citation.url)
+      );
+      setSources([...new Set(allSources)]);
+
     } catch (error) {
       console.error("Error generating map:", error);
-      setStatus(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setStatus("error");
     } finally {
       setIsLoading(false);
     }
-  }, [query, mockMode]);
+  }, [query]);
 
   return (
     <div className="h-screen flex flex-col">
@@ -98,17 +113,6 @@ export default function Home() {
       <div className="bg-white border-b border-gray-200 p-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">Mapress</h1>
-          <div className="flex items-center space-x-4">
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={mockMode}
-                onChange={(e) => setMockMode(e.target.checked)}
-                className="rounded"
-              />
-              <span className="text-sm text-gray-600">Mock Mode</span>
-            </label>
-          </div>
         </div>
       </div>
 
@@ -145,7 +149,7 @@ export default function Home() {
           <MapCanvas
             nodes={nodes}
             edges={edges}
-            onNodeSelect={setSelectedNode}
+            onNodeSelect={handleNodeSelect}
             isLoading={isLoading}
           />
         </div>
@@ -153,7 +157,7 @@ export default function Home() {
         {/* Sidebar */}
         {selectedNode && (
           <div className="w-80 border-l border-gray-200">
-            <Sidebar node={selectedNode} />
+            <Sidebar node={selectedNode} onClose={() => setSelectedNode(null)} />
           </div>
         )}
       </div>

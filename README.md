@@ -1,33 +1,36 @@
-# Mapress - News Mind Map Generator
+# Mapress - AI-Powered News Mind Map Generator
 
-A real-time, citation-backed news mind map generator that transforms news queries into interactive visualizations with source citations.
+A real-time, citation-backed news mind map generator that uses Grok-4 with tool-calling to transform news queries into interactive visualizations with source citations.
 
 ## What Mapress Does
 
 Mapress takes a user prompt (e.g., "AI regulation this week") and:
-1. **Searches** the web for relevant news articles
+1. **Searches** the web for relevant news articles using MCP tools
 2. **Fetches** article content and extracts key information
-3. **Clusters** information into categories and facts
-4. **Renders** an interactive mind map with citations
-5. **Streams** progress in real-time via Server-Sent Events
+3. **Uses Grok-4** with tool-calling to intelligently analyze and categorize
+4. **Generates** meaningful topic maps with proper citations
+5. **Renders** an interactive mind map with real-time streaming
 
 ## Features
 
-- 🧠 **Intelligent Clustering**: Automatically organizes news into logical categories
+- 🤖 **Grok-4 Tool-Calling**: Advanced AI with direct access to search and fetch tools
+- 🧠 **Intelligent Analysis**: Automatically generates meaningful categories and summaries
 - 📊 **Interactive Mind Maps**: Built with React Flow for smooth interactions
-- 🔗 **Source Citations**: Every fact backed by verifiable sources
+- 🔗 **Source Citations**: Every fact backed by verifiable sources with URLs
 - ⚡ **Real-time Streaming**: Watch the map build step-by-step
 - 🎨 **Auto Layout**: Automatic graph layout with elkjs
 - 📱 **Responsive Design**: Works on desktop and mobile
 - 📤 **Export Options**: Download as PNG or JSON
 - 🧪 **Mock Mode**: Test without API keys
+- 🔄 **Fallback Support**: Graceful degradation when tool-calling fails
 
 ## Tech Stack
 
 - **Framework**: Next.js 15 (App Router) + TypeScript
 - **UI**: React Flow + Tailwind CSS
 - **Layout**: elkjs for automatic graph layout
-- **LLM**: Grok-4-fast via OpenRouter
+- **LLM**: Grok-4 with tool-calling via OpenRouter
+- **MCP**: WebSocket-based Model Context Protocol for tools
 - **Streaming**: Server-Sent Events (SSE)
 - **Deployment**: Vercel-ready
 
@@ -57,12 +60,29 @@ Create a `.env.local` file:
 ```env
 OPENROUTER_API_KEY=sk-your-key-here
 MODEL=xai/grok-2-mini
-MCP_SEARCH_URL=http://localhost:8082
-MCP_FETCH_URL=http://localhost:8081
+MCP_SEARCH_URL=http://localhost:7072
+MCP_FETCH_URL=http://localhost:7071
+MCP_SEARCH_WS_URL=ws://localhost:7072
+MCP_FETCH_WS_URL=ws://localhost:7071
 MAX_URLS=8
 MAX_NODES=16
 MAX_TOKENS=2500
+MAX_TOOL_ITERATIONS=8
+FETCH_MAX_BYTES=2000000
+FETCH_TIMEOUT_MS=12000
 NEXT_PUBLIC_APP_NAME=Mapress
+```
+
+### 4. Start MCP Adapters (Optional)
+
+For full functionality, start the MCP adapters:
+
+```bash
+# Start WebSocket-enabled MCP adapters
+./start-mcp-ws.sh
+
+# Or start regular HTTP adapters
+./start-mcp-adapters.sh
 ```
 
 Then run:
@@ -94,8 +114,46 @@ npm run dev
 
 ## API Endpoints
 
-### `/api/stream` (POST)
-Main SSE endpoint that orchestrates the entire process:
+### `/api/map` (POST) - NEW!
+Main endpoint for Grok tool-calling system:
+- Uses Grok-4 with tool-calling to search and fetch
+- Generates intelligent topic maps with citations
+- Returns structured JSON response
+
+**Request Body:**
+```json
+{
+  "prompt": "Latest developments in AI regulation",
+  "recencyDays": 7,
+  "maxSources": 8,
+  "depth": 2
+}
+```
+
+**Response:**
+```json
+{
+  "topic": "Latest developments in AI regulation",
+  "generatedAt": "2024-01-15T10:30:00Z",
+  "depth": 2,
+  "nodes": {
+    "category1": {
+      "id": "category1",
+      "title": "Regulatory Frameworks",
+      "summary": "Overview of new AI regulations...",
+      "citations": [
+        {"url": "https://example.com", "title": "EU AI Act", "publishedAt": "2024-01-10"}
+      ]
+    }
+  },
+  "edges": [
+    {"from": "category1", "to": "category2", "label": "related"}
+  ]
+}
+```
+
+### `/api/stream` (POST) - Legacy
+Original SSE endpoint for backward compatibility:
 - Searches for URLs
 - Fetches article content
 - Clusters information with LLM

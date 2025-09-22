@@ -2,9 +2,10 @@
 
 interface SidebarProps {
   node: any;
+  onClose?: () => void;
 }
 
-export default function Sidebar({ node }: SidebarProps) {
+export default function Sidebar({ node, onClose }: SidebarProps) {
   const isCategory = node.type === "category";
   const data = node.data;
 
@@ -12,10 +13,25 @@ export default function Sidebar({ node }: SidebarProps) {
     <div className="h-full bg-white border-l border-gray-200 flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900">
-          {isCategory ? "Category" : "Fact"} Details
-        </h2>
-        <p className="text-sm text-gray-600 mt-1">{data.title}</p>
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold text-gray-900">
+              {isCategory ? "Category" : "Fact"} Details
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">{data.title}</p>
+          </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="ml-4 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+              title="Close sidebar"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Content */}
@@ -23,13 +39,58 @@ export default function Sidebar({ node }: SidebarProps) {
         {/* Summary */}
         <div>
           <h3 className="font-medium text-gray-900 mb-2">Summary</h3>
-          <p className="text-sm text-gray-600">
-            {isCategory 
+          <p className="text-sm text-gray-600 leading-relaxed">
+            {data.summary || (isCategory 
               ? `This category contains ${data.facts?.length || 0} key facts about ${data.title.toLowerCase()}.`
               : `This fact provides specific information about ${data.title.toLowerCase()}.`
-            }
+            )}
           </p>
         </div>
+
+        {/* Key Points */}
+        {data.keyPoints && data.keyPoints.length > 0 && (
+          <div>
+            <h3 className="font-medium text-gray-900 mb-2">Key Points</h3>
+            <ul className="space-y-2">
+              {data.keyPoints.map((point: string, index: number) => (
+                <li key={index} className="text-sm text-gray-600 flex items-start">
+                  <span className="text-blue-500 mr-2">•</span>
+                  <span>{point}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Context */}
+        {data.context && (
+          <div>
+            <h3 className="font-medium text-gray-900 mb-2">Context</h3>
+            <p className="text-sm text-gray-600 leading-relaxed">{data.context}</p>
+          </div>
+        )}
+
+        {/* Implications */}
+        {data.implications && (
+          <div>
+            <h3 className="font-medium text-gray-900 mb-2">Implications</h3>
+            <p className="text-sm text-gray-600 leading-relaxed">{data.implications}</p>
+          </div>
+        )}
+
+        {/* Related Topics */}
+        {data.relatedTopics && data.relatedTopics.length > 0 && (
+          <div>
+            <h3 className="font-medium text-gray-900 mb-2">Related Topics</h3>
+            <div className="flex flex-wrap gap-2">
+              {data.relatedTopics.map((topic: string, index: number) => (
+                <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">
+                  {topic}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Key Facts */}
         {!isCategory && data.bullets && (
@@ -56,7 +117,7 @@ export default function Sidebar({ node }: SidebarProps) {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="text-sm font-medium text-gray-900">
-                        {source.outlet || "Unknown Source"}
+                        {source.title || source.outlet || "Unknown Source"}
                       </div>
                       <a
                         href={source.url}
@@ -66,6 +127,11 @@ export default function Sidebar({ node }: SidebarProps) {
                       >
                         {source.url}
                       </a>
+                      {source.publishedAt && (
+                        <div className="mt-1 text-xs text-gray-500">
+                          {new Date(source.publishedAt).toLocaleDateString()}
+                        </div>
+                      )}
                       {source.quote && (
                         <div className="mt-2 text-xs text-gray-600 italic">
                           "{source.quote}"

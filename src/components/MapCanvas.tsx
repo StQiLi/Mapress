@@ -24,29 +24,16 @@ const nodeTypes: NodeTypes = {
 
 function CategoryNode({ data }: { data: any }) {
   return (
-    <div className="bg-blue-100 border-2 border-blue-300 rounded-lg p-3 min-w-[200px] shadow-lg">
-      <div className="font-semibold text-blue-900 text-sm">{data.title}</div>
-      {data.sources && data.sources.length > 0 && (
-        <div className="text-xs text-blue-600 mt-1">
-          {data.sources.length} source{data.sources.length !== 1 ? "s" : ""}
-        </div>
-      )}
+    <div className="bg-blue-100 border-2 border-blue-300 rounded-lg p-4 min-w-[200px] max-w-[300px] shadow-lg">
+      <div className="font-semibold text-blue-900 text-sm text-center">{data.title}</div>
     </div>
   );
 }
 
 function FactNode({ data }: { data: any }) {
   return (
-    <div className="bg-green-100 border-2 border-green-300 rounded-lg p-3 min-w-[200px] shadow-lg">
-      <div className="font-semibold text-green-900 text-sm">{data.title}</div>
-      <div className="text-xs text-green-600 mt-1">
-        {data.bullets?.length || 0} bullet{data.bullets?.length !== 1 ? "s" : ""}
-      </div>
-      {data.sources && data.sources.length > 0 && (
-        <div className="text-xs text-green-600 mt-1">
-          {data.sources.length} source{data.sources.length !== 1 ? "s" : ""}
-        </div>
-      )}
+    <div className="bg-green-100 border-2 border-green-300 rounded-lg p-3 min-w-[150px] max-w-[250px] shadow-lg">
+      <div className="font-semibold text-green-900 text-sm text-center">{data.title}</div>
     </div>
   );
 }
@@ -63,20 +50,10 @@ export default function MapCanvas({ nodes, edges, onNodeSelect, isLoading }: Map
   const [reactFlowEdges, setEdges, onEdgesChange] = useEdgesState([]);
   const [isLayouting, setIsLayouting] = useState(false);
 
-  // Update nodes and edges when props change
-  useEffect(() => {
-    if (nodes.length > 0) {
-      setNodes(nodes);
-      setEdges(edges);
-    }
-  }, [nodes, edges, setNodes, setEdges]);
-
-  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
-    onNodeSelect(node);
-  }, [onNodeSelect]);
-
   const runLayout = useCallback(async () => {
-    if (reactFlowNodes.length === 0) return;
+    if (reactFlowNodes.length === 0) {
+      return;
+    }
 
     setIsLayouting(true);
     try {
@@ -84,7 +61,7 @@ export default function MapCanvas({ nodes, edges, onNodeSelect, isLoading }: Map
         id: "root",
         layoutOptions: {
           "elk.algorithm": "layered",
-          "elk.direction": "RIGHT",
+          "elk.direction": "DOWN",
           "elk.spacing.nodeNode": "80",
           "elk.layered.spacing.nodeNodeBetweenLayers": "100",
         },
@@ -116,10 +93,33 @@ export default function MapCanvas({ nodes, edges, onNodeSelect, isLoading }: Map
       setNodes(layoutedNodes);
     } catch (error) {
       console.error("Layout failed:", error);
+      // Fallback: ensure nodes are visible with simple positioning
+      const fallbackNodes = reactFlowNodes.map((node, index) => ({
+        ...node,
+        position: {
+          x: index * 300,
+          y: index * 150,
+        },
+      }));
+      setNodes(fallbackNodes);
     } finally {
       setIsLayouting(false);
     }
   }, [reactFlowNodes, reactFlowEdges, setNodes]);
+
+  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+    onNodeSelect(node);
+  }, [onNodeSelect]);
+
+  // Update nodes and edges when props change
+  useEffect(() => {
+    if (nodes.length > 0) {
+      setNodes(nodes);
+      setEdges(edges);
+      // Don't auto-run layout to avoid infinite loops
+      // User can click "Auto Layout" button manually
+    }
+  }, [nodes, edges, setNodes, setEdges]);
 
   return (
     <div className="h-full relative">

@@ -1,91 +1,147 @@
-const SEARCH = process.env.MCP_SEARCH_URL;
-const FETCH = process.env.MCP_FETCH_URL;
+// Simplified MCP Client using HTTP
+export interface MCPToolResult {
+  success: boolean;
+  data?: any;
+  error?: string;
+  durationMs: number;
+  bytes: number;
+}
+
+class MCPClient {
+  private searchUrl: string;
+  private fetchUrl: string;
+
+  constructor() {
+    this.searchUrl = process.env.MCP_SEARCH_URL || 'http://localhost:7072';
+    this.fetchUrl = process.env.MCP_FETCH_URL || 'http://localhost:7071';
+  }
+
+  async searchNews(query: string, maxSources = 8, recencyDays = 7): Promise<MCPToolResult> {
+    const startTime = Date.now();
+    
+    try {
+      const response = await fetch(`${this.searchUrl}/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, max: maxSources })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Search failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const durationMs = Date.now() - startTime;
+      
+      return {
+        success: true,
+        data: data.urls || [],
+        durationMs,
+        bytes: JSON.stringify(data).length
+      };
+
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        durationMs: Date.now() - startTime,
+        bytes: 0
+      };
+    }
+  }
+
+  async fetchAndParse(url: string): Promise<MCPToolResult> {
+    const startTime = Date.now();
+    
+    try {
+      const response = await fetch(`${this.fetchUrl}/fetch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Fetch failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const durationMs = Date.now() - startTime;
+      
+      return {
+        success: true,
+        data: { title: data.title, content: data.markdown, url },
+        durationMs,
+        bytes: JSON.stringify(data).length
+      };
+
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        durationMs: Date.now() - startTime,
+        bytes: 0
+      };
+    }
+  }
+
+  close() {
+    // No cleanup needed for HTTP
+  }
+}
 
 export async function mcpSearch(query: string, max = 8): Promise<string[]> {
-  console.log("🔍 MCP Search request:", { query, max, SEARCH_URL: SEARCH });
+  const SEARCH = process.env.MCP_SEARCH_URL;
   
   if (!SEARCH) {
-    console.log("⚠️ No MCP_SEARCH_URL set, returning empty array");
-    return []; // mock mode or fallback handled upstream
+    return [];
   }
   
   try {
-    const requestBody = { query, max };
-    console.log("📤 Sending request to:", `${SEARCH}/search`);
-    console.log("📤 Request body:", requestBody);
-    
     const r = await fetch(`${SEARCH}/search`, { 
       method: "POST", 
       headers: { "content-type": "application/json" }, 
-      body: JSON.stringify(requestBody) 
+      body: JSON.stringify({ query, max }) 
     });
     
-    console.log("📥 Response status:", r.status, r.statusText);
-    
     if (!r.ok) {
-      const errorText = await r.text();
-      console.error("❌ MCP search failed:", r.status, errorText);
-      throw new Error(`MCP search failed ${r.status}: ${errorText}`);
+      throw new Error(`Search failed ${r.status}`);
     }
     
     const data = await r.json();
-    console.log("📋 MCP search response:", data);
-    
-    const urls = Array.isArray(data.urls) ? data.urls.slice(0, max) : [];
-    console.log("✅ MCP search returning:", urls.length, "URLs");
-    return urls;
+    return Array.isArray(data.urls) ? data.urls.slice(0, max) : [];
   } catch (error) {
-    console.error("❌ MCP search error:", error);
     throw error;
   }
 }
 
 export async function mcpFetch(url: string): Promise<{ title: string; markdown: string }> {
-  console.log("📄 MCP Fetch request:", { url, FETCH_URL: FETCH });
+  const FETCH = process.env.MCP_FETCH_URL;
   
   if (!FETCH) {
-    console.error("❌ No MCP_FETCH_URL configured");
     throw new Error("MCP fetch not configured");
   }
   
   try {
-    const requestBody = { url };
-    console.log("📤 Sending request to:", `${FETCH}/fetch`);
-    console.log("📤 Request body:", requestBody);
-    
     const r = await fetch(`${FETCH}/fetch`, { 
       method: "POST", 
       headers: { "content-type": "application/json" }, 
-      body: JSON.stringify(requestBody) 
+      body: JSON.stringify({ url }) 
     });
     
-    console.log("📥 Response status:", r.status, r.statusText);
-    
     if (!r.ok) {
-      const errorText = await r.text();
-      console.error("❌ MCP fetch failed:", r.status, errorText);
-      throw new Error(`MCP fetch failed ${r.status}: ${errorText}`);
+      throw new Error(`Fetch failed ${r.status}`);
     }
     
     const data = await r.json();
-    console.log("📋 MCP fetch response:", {
-      title: data.title?.substring(0, 50) + "...",
-      markdownLength: data.markdown?.length || 0
-    });
-    
-    const result = { 
+    return { 
       title: data.title ?? url, 
       markdown: data.markdown ?? data.text ?? "" 
     };
-    
-    console.log("✅ MCP fetch returning:", {
-      title: result.title.substring(0, 50) + "...",
-      markdownLength: result.markdown.length
-    });
-    
-    return result;
   } catch (error) {
-    console.error("❌ MCP fetch error:", error);
     throw error;
   }
+}
+
+export function createMCPClient(): MCPClient {
+  return new MCPClient();
 }

@@ -12,10 +12,10 @@
       "static/css/app/page.css",
       "static/chunks/app/page.js"
     ],
-    "/api/stream/route": [
+    "/api/map/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/stream/route.js"
+      "static/chunks/app/api/map/route.js"
     ]
   }
 }

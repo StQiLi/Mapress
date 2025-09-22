@@ -1,4 +1,4 @@
 {
-  "/api/stream/route": "app/api/stream/route.js",
+  "/api/map/route": "app/api/map/route.js",
   "/page": "app/page.js"
 }
