@@ -62,20 +62,42 @@ Return JSON with this structure:
       "keyPoints": ["Key point 1", "Key point 2", "Key point 3"],
       "context": "Historical context and background information",
       "implications": "What this means for the future and broader implications",
-      "relatedTopics": ["Related topic 1", "Related topic 2"]
+      "relatedTopics": ["Technology", "Politics", "Economy", "International", "Society", "Science"]
     }
   },
   "edges": [{"from": "id1", "to": "id2", "label": "Relationship description"}]
 }
 
 Requirements:
-- 3-5 main categories with comprehensive analysis
-- Each category needs multiple citations from diverse sources
+- Generate 6-10 specific, focused nodes that cover the topic comprehensively
+- Each node should represent a distinct aspect or development related to the query
+- Each node needs multiple citations from diverse sources
 - Summaries should be detailed, analytical, and provide context
 - Include key points, context, implications, and related topics
 - Use the tools to gather real content first
 - Make connections between topics explicit with labeled edges
-- Provide rich, verbose content that gives users deep insights`;
+- Provide rich, verbose content that gives users deep insights
+
+SUPER CATEGORY ASSIGNMENT RULES:
+- Use ONLY these 6 standard categories: "Technology", "Politics", "Economy", "International", "Society", "Science"
+- Assign AT MOST 2 related topics to each node (preferably just 1)
+- Choose the categories that best represent the node's primary and secondary focus
+- Ensure nodes are distributed across different super categories when possible
+- Examples:
+  * AI regulation → ["Technology"]
+  * Election results → ["Politics"] 
+  * Market trends → ["Economy"]
+  * Diplomatic relations → ["International"]
+  * Public health → ["Society"]
+  * Research findings → ["Science"]
+  * Tech policy → ["Technology", "Politics"]
+
+NODE GENERATION STRATEGY:
+- Create specific, focused nodes rather than broad categories
+- Each node should represent a distinct news story, development, or analysis
+- Aim for 1-2 nodes per relevant super category
+- Prioritize the most important and recent developments
+- Ensure nodes have clear, distinct content that doesn't overlap`;
 
 export const SYSTEM_OUTLINE_PROMPT = `
 You create a citation-backed news outline from multiple articles.

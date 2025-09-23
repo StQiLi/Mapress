@@ -15,11 +15,13 @@
     "@reactflow/minimap": "^11.7.14",
     "@reactflow/node-resizer": "^2.2.14",
     "@tailwindcss/postcss": "^4.1.13",
+    "d3-force": "^3.0.0",
     "elkjs": "^0.9.3",
     "html2canvas": "^1.4.1",
     "next": "^15.5.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-force-graph-2d": "^1.29.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
