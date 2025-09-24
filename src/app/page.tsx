@@ -1,39 +1,28 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import MapCanvas from "@/components/MapCanvas";
-import Sidebar from "@/components/Sidebar";
-import StatusBar from "@/components/StatusBar";
+import { useState, useCallback } from "react";
+import LandingPage from "@/components/LandingPage";
+import MapViewPage from "@/components/MapViewPage";
+
+type AppState = "landing" | "loading" | "map";
 
 export default function Home() {
+  const [appState, setAppState] = useState<AppState>("landing");
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [sources, setSources] = useState<string[]>([]);
   const [nodes, setNodes] = useState<any[]>([]);
   const [edges, setEdges] = useState<any[]>([]);
-  const [selectedNode, setSelectedNode] = useState<any>(null);
-  const [superCategories, setSuperCategories] = useState<any[]>([]);
-  const [activeCategories, setActiveCategories] = useState<string[]>([]);
 
-  const handleNodeSelect = useCallback((node: any) => {
-    // Toggle: if clicking the same node, deselect it
-    if (selectedNode && selectedNode.id === node.id) {
-      setSelectedNode(null);
-    } else {
-      setSelectedNode(node);
-    }
-  }, [selectedNode]);
-
-  const handleGenerate = useCallback(async () => {
-    if (!query.trim()) return;
-    
+  const handleGenerate = useCallback(async (searchQuery: string) => {
+    setQuery(searchQuery);
+    setAppState("loading");
     setIsLoading(true);
     setStatus("search");
     setSources([]);
     setNodes([]);
     setEdges([]);
-    setSelectedNode(null);
 
     try {
       // Simulate progress steps
@@ -52,7 +41,7 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          prompt: query.trim(),
+          prompt: searchQuery.trim(),
           recencyDays: 7,
           maxSources: 8,
           depth: 2
@@ -65,44 +54,24 @@ export default function Home() {
 
       const data = await response.json();
       
-      // Debug: Log the raw data structure
-      console.log("Raw API response:", data);
-      console.log("Node IDs:", Object.keys(data.nodes));
-      console.log("Edge references:", data.edges.map((e: any) => ({ from: e.from, to: e.to })));
-      
       // Transform the new format to the old format for compatibility
       const nodeValues = Object.values(data.nodes);
-      const centerX = 600;
-      const centerY = 400;
-      const radius = Math.max(300, nodeValues.length * 80);
+      const centerX = 0;
+      const centerY = 0;
+      const radius = Math.max(150, nodeValues.length * 40);
       const angleStep = (2 * Math.PI) / nodeValues.length;
       
       const transformedNodes = nodeValues
-        .filter((node: any) => node && node.id) // Filter out nodes without IDs
+        .filter((node: any) => node && node.id)
         .map((node: any, index: number) => {
-          // Use a more systematic approach to prevent overlap
           const angle = index * angleStep;
-          
-          // Calculate base position on circle
-          const baseX = centerX + radius * Math.cos(angle);
-          const baseY = centerY + radius * Math.sin(angle);
-          
-          // Add controlled randomness that ensures minimum separation
-          const randomOffsetX = (Math.random() - 0.5) * 300; // Increased spread
-          const randomOffsetY = (Math.random() - 0.5) * 300; // Increased spread
-          
-          const position = { 
-            x: baseX - 60 + randomOffsetX, // Center the node (120px width / 2 = 60px)
-            y: baseY - 60 + randomOffsetY  // Center the node (120px height / 2 = 60px)
-          };
-          
-          console.log(`Node ${node.id} positioned at:`, position, `(base: ${baseX}, ${baseY}, offset: ${randomOffsetX}, ${randomOffsetY})`);
+          const x = centerX + radius * Math.cos(angle);
+          const y = centerY + radius * Math.sin(angle);
           
           return {
             id: node.id,
             type: "category",
-            position,
-            draggable: true, // Explicitly set draggable
+            position: { x, y },
             data: {
               title: node.title,
               summary: node.summary,
@@ -117,21 +86,7 @@ export default function Home() {
           };
         });
 
-      // Filter out edges that reference non-existent nodes
-      const validNodeIds = new Set(transformedNodes.map((node: any) => node.id));
-      console.log("Valid node IDs:", Array.from(validNodeIds));
-      
-      const validEdges = data.edges.filter((edge: any) => {
-        const isValid = validNodeIds.has(edge.from) && validNodeIds.has(edge.to);
-        if (!isValid) {
-          console.warn(`Invalid edge filtered out:`, edge);
-        }
-        return isValid;
-      });
-      
-      console.log(`Filtered ${data.edges.length} edges down to ${validEdges.length} valid edges`);
-      
-      const transformedEdges = validEdges.map((edge: any, index: number) => ({
+      const transformedEdges = data.edges.map((edge: any, index: number) => ({
         id: `edge-${index}`,
         source: edge.from,
         target: edge.to,
@@ -147,235 +102,317 @@ export default function Home() {
         (node.citations || []).map((citation: any) => citation.url)
       );
       setSources([...new Set(allSources)]);
+      
+      // Switch to map view
+      setTimeout(() => {
+        setAppState("map");
+      }, 1000);
 
     } catch (error) {
       console.error("Error generating map:", error);
       setStatus("error");
+      // Return to landing on error
+      setTimeout(() => {
+        setAppState("landing");
+      }, 2000);
     } finally {
       setIsLoading(false);
     }
-  }, [query]);
-
-  const handleCategoryToggle = useCallback((categoryName: string) => {
-    setActiveCategories(prev => {
-      if (prev.includes(categoryName)) {
-        // Remove category if already selected
-        return prev.filter(cat => cat !== categoryName);
-      } else {
-        // Add category if not selected
-        return [...prev, categoryName];
-      }
-    });
   }, []);
 
-  const handleClearAllCategories = useCallback(() => {
-    setActiveCategories([]);
+  const handleBack = useCallback(() => {
+    setAppState("landing");
+    setQuery("");
+    setNodes([]);
+    setEdges([]);
+    setSources([]);
+    setStatus("");
   }, []);
 
-  // Cluster nodes based on active categories
-  const filteredNodes = useMemo(() => {
-    if (activeCategories.length === 0) {
-      console.log("Showing all nodes:", nodes.length);
-      return nodes;
-    }
-    
-    // Get nodes that match the active categories
-    const matchingNodes = nodes.filter(node => {
-      const nodeTopics = node.data.relatedTopics || [];
-      return activeCategories.some(categoryName => nodeTopics.includes(categoryName));
-    });
-    
-    if (matchingNodes.length === 0) {
-      return [];
-    }
-    
-    // Cluster nodes by category - arrange them in groups
-    const clusteredNodes: any[] = [];
-    let clusterIndex = 0;
-    const clusterSpacing = 400; // Distance between clusters
-    const nodeSpacing = 150; // Distance between nodes in same cluster
-    
-    activeCategories.forEach((categoryName, categoryIndex) => {
-      const categoryNodes = matchingNodes.filter(node => {
-        const nodeTopics = node.data.relatedTopics || [];
-        return nodeTopics.includes(categoryName);
-      });
-      
-      if (categoryNodes.length > 0) {
-        // Position nodes in a cluster for this category
-        const clusterX = 300 + (categoryIndex * clusterSpacing);
-        const clusterY = 300;
-        
-        categoryNodes.forEach((node, nodeIndex) => {
-          // Arrange nodes in a circle around the cluster center
-          const angle = (nodeIndex / categoryNodes.length) * 2 * Math.PI;
-          const radius = 120; // Distance from cluster center
-          
-          clusteredNodes.push({
-            ...node,
-            position: {
-              x: clusterX + radius * Math.cos(angle) - 60, // Center the node (120px width / 2)
-              y: clusterY + radius * Math.sin(angle) - 60  // Center the node (120px height / 2)
-            }
-          });
-        });
-      }
-    });
-    
-    console.log(`Clustered ${clusteredNodes.length} nodes into ${activeCategories.length} categories`);
-    return clusteredNodes;
-  }, [nodes, activeCategories]);
+  // Conditional rendering based on app state
+  if (appState === "landing") {
+    return (
+      <LandingPage 
+        onGenerate={handleGenerate}
+        isLoading={isLoading}
+      />
+    );
+  }
 
-  return (
-    <div className="h-screen flex flex-col">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 p-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">Mapress</h1>
-        </div>
-      </div>
-
-      {/* Search Bar */}
-      <div className="bg-white border-b border-gray-200 p-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex space-x-4">
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Enter your news query (e.g., 'AI regulation this week')"
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={isLoading}
-            />
-            <button
-              onClick={handleGenerate}
-              disabled={isLoading || !query.trim()}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? "Generating..." : "Generate Map"}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Status Bar */}
-      <StatusBar status={status} isLoading={isLoading} sources={sources} />
-
-      {/* Main Content */}
-      <div className="flex-1 relative">
-
-        {/* Super Category Toggle Buttons - Floating Over Map */}
-        <div className="absolute top-4 left-4 z-20 flex flex-wrap">
-          {/* Category Buttons */}
-          {[
-            { name: "Technology", color: "bg-blue-600", hoverColor: "hover:bg-blue-700" },
-            { name: "Politics", color: "bg-red-600", hoverColor: "hover:bg-red-700" },
-            { name: "Economy", color: "bg-green-600", hoverColor: "hover:bg-green-700" },
-            { name: "International", color: "bg-purple-600", hoverColor: "hover:bg-purple-700" },
-            { name: "Society", color: "bg-yellow-600", hoverColor: "hover:bg-yellow-700" },
-            { name: "Science", color: "bg-indigo-600", hoverColor: "hover:bg-indigo-700" }
-          ].map((category) => {
-            const isActive = activeCategories.includes(category.name);
-            return (
-              <button
-                key={category.name}
-                onClick={() => handleCategoryToggle(category.name)}
-                className={`
-                  px-4 py-2 text-sm font-semibold rounded-lg 
-                  transition-all duration-300 ease-in-out
-                  min-w-[100px] text-center mr-4 mb-2
-                  ${isActive 
-                    ? `${category.color} text-white shadow-lg transform scale-105` 
-                    : 'bg-white text-gray-800 hover:bg-gray-100 hover:shadow-md'
-                  }
-                `}
-                style={{
-                  padding: '0.5rem 1rem',
-                  fontSize: '0.875rem',
-                  fontWeight: '600',
-                  borderRadius: '0.5rem',
-                  transition: 'all 0.3s ease-in-out',
-                  minWidth: '100px',
-                  textAlign: 'center',
-                  cursor: 'pointer',
-                  backgroundColor: isActive 
-                    ? (category.name === 'Technology' ? '#2563eb' : 
-                       category.name === 'Politics' ? '#dc2626' :
-                       category.name === 'Economy' ? '#16a34a' :
-                       category.name === 'International' ? '#9333ea' :
-                       category.name === 'Society' ? '#ca8a04' :
-                       category.name === 'Science' ? '#4f46e5' : '#6b7280')
-                    : 'white',
-                  color: isActive ? 'white' : '#1f2937',
-                  boxShadow: isActive ? '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)' : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                  transform: isActive ? 'scale(1.05)' : 'scale(1)',
-                  border: 'none'
-                }}
-              >
-                {category.name}
-              </button>
-            );
-          })}
-          
-          {/* Clear All Button */}
-          {activeCategories.length > 0 && (
-            <button
-              onClick={handleClearAllCategories}
-              className="px-4 py-2 text-sm font-semibold rounded-lg bg-gray-800 text-white hover:bg-gray-900 hover:shadow-lg transition-all duration-300 ease-in-out min-w-[100px] text-center mr-4 mb-2"
-              style={{
-                padding: '0.5rem 1rem',
-                fontSize: '0.875rem',
-                fontWeight: '600',
-                borderRadius: '0.5rem',
-                backgroundColor: '#1f2937',
-                color: 'white',
-                transition: 'all 0.3s ease-in-out',
-                minWidth: '100px',
-                textAlign: 'center',
-                border: 'none',
-                cursor: 'pointer',
-                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
-              }}
-            >
-              Clear All
-            </button>
-          )}
-        </div>
-
-        {/* Map Canvas */}
-        <div className="flex-1 h-full">
-          <MapCanvas
-            nodes={filteredNodes}
-            edges={edges}
-            onNodeSelect={handleNodeSelect}
-            isLoading={isLoading}
-            selectedNodeId={selectedNode?.id}
-            onSuperCategoriesChange={setSuperCategories}
-          />
-        </div>
-
-        {/* Sidebar - Slides out from right, only covering graph area */}
-        {selectedNode && (
-          <div 
-            style={{
+  if (appState === "loading") {
+    return (
+      <div style={{ 
+        background: 'linear-gradient(to bottom right, #eff6ff, #ffffff, #eef2ff)',
+        minHeight: '100vh'
+      }}>
+        {/* Main Content - Centered on screen */}
+        <div style={{ 
+          height: '100vh', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          paddingTop: '2rem', 
+          paddingBottom: '2rem',
+          paddingLeft: '15%', 
+          paddingRight: '15%',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          {/* Scrolling News Background */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            zIndex: 1,
+            opacity: 0.2
+          }}>
+            {/* Row 1 */}
+            <div style={{
               position: 'absolute',
-              top: 0,
-              right: 0,
-              height: '100%',
-              width: '50vw',
-              backgroundColor: '#ffffff',
-              borderLeft: '1px solid #e5e7eb',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              zIndex: 50,
-              transform: 'translateX(0)',
-              transition: 'transform 300ms ease-in-out'
-            }}
-          >
-            <Sidebar node={selectedNode} onClose={() => setSelectedNode(null)} />
-          </div>
-        )}
-      </div>
+              top: '10%',
+              left: 0,
+              width: '100%',
+              display: 'flex',
+              animation: 'scrollNewsSeamless 60s linear infinite',
+              alignItems: 'center'
+            }}>
+              {[
+                // Trump / US politics (PD – US Gov)
+                "https://upload.wikimedia.org/wikipedia/commons/8/8e/President_Donald_Trump_meets_with_freed_Israeli_hostages_%2854778890430%29.jpg",
+                "https://upload.wikimedia.org/wikipedia/commons/5/52/President-Donald-Trump-Official-Presidential-Portrait.png",
 
-    </div>
+                // Ukraine war (Sept 2025 events) – CC BY 4.0
+                "https://upload.wikimedia.org/wikipedia/commons/b/bc/Disposal_of_an_air-dropped_bomb_in_Kherson%2C_2025-09-16_%2801%29.jpg",
+                "https://upload.wikimedia.org/wikipedia/commons/2/2c/Institute_for_Advanced_Training_of_Pharmacy_Specialists_in_Kharkiv_after_Russian_attack%2C_2025-09-16_%2801%29.jpg",
+
+                // Gaza war (2023–2025) – CC BY-SA (see each file page for exact license)
+                "https://upload.wikimedia.org/wikipedia/commons/4/42/Images_of_war_23-25_from_Gaza%2C_by_Jaber_Badwen%2C_IMG_5886.jpg",
+                "https://upload.wikimedia.org/wikipedia/commons/3/3b/Palestinian_Red_Crescent_Personnel_inspect_a_destroyed_ambulance_in_Deir_el-Balah_%2C_Gaza_Strip.jpg",
+
+                // Duplicate the images for seamless scrolling
+                "https://upload.wikimedia.org/wikipedia/commons/8/8e/President_Donald_Trump_meets_with_freed_Israeli_hostages_%2854778890430%29.jpg",
+                "https://upload.wikimedia.org/wikipedia/commons/5/52/President-Donald-Trump-Official-Presidential-Portrait.png",
+                "https://upload.wikimedia.org/wikipedia/commons/b/bc/Disposal_of_an_air-dropped_bomb_in_Kherson%2C_2025-09-16_%2801%29.jpg",
+                "https://upload.wikimedia.org/wikipedia/commons/2/2c/Institute_for_Advanced_Training_of_Pharmacy_Specialists_in_Kharkiv_after_Russian_attack%2C_2025-09-16_%2801%29.jpg",
+                "https://upload.wikimedia.org/wikipedia/commons/4/42/Images_of_war_23-25_from_Gaza%2C_by_Jaber_Badwen%2C_IMG_5886.jpg",
+                "https://upload.wikimedia.org/wikipedia/commons/3/3b/Palestinian_Red_Crescent_Personnel_inspect_a_destroyed_ambulance_in_Deir_el-Balah_%2C_Gaza_Strip.jpg"
+              ].map((src, index) => (
+                <div
+                  key={`row1-${index}`}
+                  style={{
+                    minWidth: '300px',
+                    height: '200px',
+                    marginRight: '2rem',
+                    borderRadius: '0.5rem',
+                    backgroundImage: `url(${src})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    filter: 'grayscale(20%) blur(0.5px)',
+                    opacity: 0.6
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Row 2 */}
+            <div style={{
+              position: 'absolute',
+              top: '40%',
+              left: 0,
+              width: '100%',
+              display: 'flex',
+              animation: 'scrollNewsSeamless 60s linear infinite reverse',
+              alignItems: 'center'
+            }}>
+              {[
+                // UNGA 80 (NYC, Sept 22, 2025) – US & India
+                "https://commons.wikimedia.org/wiki/Special:FilePath/80th%20Session%20of%20the%20United%20Nations%20General%20Assembly%20in%20New%20York%20City%20from%20September%2022-26%2C%202025%20-%202.jpg",
+
+                // Ukraine x IAEA (Sept 15, 2025)
+                "https://commons.wikimedia.org/wiki/Special:FilePath/Svitlana%20Hrynchuk%20or%20Grynchuk%20meeting%20IAEA%27s%20Rafael%20Mariano%20Grossi%202025%2009.jpg",
+
+                // Ukraine – Hrushivka strike aftermath (Sept 11, 2025)
+                "https://commons.wikimedia.org/wiki/Special:FilePath/Destructions%20in%20Hrushivka%20after%20Russian%20attack%2C%202025-09-11%20%2804%29.jpg",
+
+                // Sudan crisis – refugees in Chad (Jan 24, 2025)
+                "https://commons.wikimedia.org/wiki/Special:FilePath/Foreign%20Secretary%20David%20Lammy%20meets%20Sudanese%20refugees%20in%20Chad%20in%20the%20border%20town%20of%20Adre%20on%2024%20January%202025%20-%2013.jpg",
+
+                // South Korea wildfires from space (Mar 22, 2025)
+                "https://commons.wikimedia.org/wiki/Special:FilePath/Southkoreafires%20amo%2020250322%20lrg.jpg",
+
+                // Europe heat/land conditions (Copernicus – Sept 4, 2025)
+                "https://commons.wikimedia.org/wiki/Special:FilePath/Lake%20Tisza%2C%20Hungary%20%28Copernicus%202025-09-04%29.png",
+
+                // Duplicate the images for seamless scrolling
+                "https://commons.wikimedia.org/wiki/Special:FilePath/80th%20Session%20of%20the%20United%20Nations%20General%20Assembly%20in%20New%20York%20City%20from%20September%2022-26%2C%202025%20-%202.jpg",
+                "https://commons.wikimedia.org/wiki/Special:FilePath/Svitlana%20Hrynchuk%20or%20Grynchuk%20meeting%20IAEA%27s%20Rafael%20Mariano%20Grossi%202025%2009.jpg",
+                "https://commons.wikimedia.org/wiki/Special:FilePath/Destructions%20in%20Hrushivka%20after%20Russian%20attack%2C%202025-09-11%20%2804%29.jpg",
+                "https://commons.wikimedia.org/wiki/Special:FilePath/Foreign%20Secretary%20David%20Lammy%20meets%20Sudanese%20refugees%20in%20Chad%20in%20the%20border%20town%20of%20Adre%20on%2024%20January%202025%20-%2013.jpg",
+                "https://commons.wikimedia.org/wiki/Special:FilePath/Southkoreafires%20amo%2020250322%20lrg.jpg",
+                "https://commons.wikimedia.org/wiki/Special:FilePath/Lake%20Tisza%2C%20Hungary%20%28Copernicus%202025-09-04%29.png"
+              ].map((src, index) => (
+                <div
+                  key={`row2-${index}`}
+                  style={{
+                    minWidth: '300px',
+                    height: '200px',
+                    marginRight: '2rem',
+                    borderRadius: '0.5rem',
+                    backgroundImage: `url(${src})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    filter: 'grayscale(20%) blur(0.5px)',
+                    opacity: 0.6
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Row 3 */}
+            <div style={{
+              position: 'absolute',
+              top: '70%',
+              left: 0,
+              width: '100%',
+              display: 'flex',
+              animation: 'scrollNewsSeamless 60s linear infinite',
+              alignItems: 'center'
+            }}>
+              {[
+                // Super Typhoon Ragasa (Sep 23, 2025)
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154824/typhoonragasa_tmo_20250923_lrg.jpg",
+                // Total lunar eclipse (ISS photo) (Sep 7, 2025)
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154814/ISS073-E-611649_lrg.jpg",
+                // Alaska fall colors from space (Sep 18, 2025)
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154821/alaskafall_oli_20250918_lrg.jpg",
+                // Heatwave map – Western North America (Sep 3, 2025)
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154754/pnwheatwave_geos5_20250903_lrg.jpg",
+                // Arctic sea ice minimum map (Sep 10, 2025)
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154807/arctic_nsidc_20250910_lrg.jpg",
+                // Wildfire smoke over WA/BC (Sep 13, 2025)
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154797/pnwsmoke_tmo_20250913_lrg.jpg",
+                // Greenland Ice Sheet – late-Aug (Aug 21, 2025)
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154793/greenlandmelt_oli2_20250821_lrg.jpg",
+                // Greenland Ice Sheet – early-Sep (Sep 6, 2025)
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154793/greenlandmelt_oli2_20250906_lrg.jpg",
+                // DRC forest loss (Kisangani) – regional view (2001–2024)
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154817/congo_oli_2024_lrg.jpg",
+                // DRC forest loss (Kisangani) – zoomed view (2001–2024)
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154817/congozm_oli_2024_lrg.jpg",
+                // Duplicated for seamless loop
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154824/typhoonragasa_tmo_20250923_lrg.jpg",
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154814/ISS073-E-611649_lrg.jpg",
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154821/alaskafall_oli_20250918_lrg.jpg",
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154754/pnwheatwave_geos5_20250903_lrg.jpg",
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154807/arctic_nsidc_20250910_lrg.jpg",
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154797/pnwsmoke_tmo_20250913_lrg.jpg",
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154793/greenlandmelt_oli2_20250821_lrg.jpg",
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154793/greenlandmelt_oli2_20250906_lrg.jpg",
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154817/congo_oli_2024_lrg.jpg",
+                "https://eoimages.gsfc.nasa.gov/images/imagerecords/154000/154817/congozm_oli_2024_lrg.jpg"
+              ].map((src, index) => (
+                <div
+                  key={`row3-${index}`}
+                  style={{
+                    minWidth: '300px',
+                    height: '200px',
+                    marginRight: '2rem',
+                    borderRadius: '0.5rem',
+                    backgroundImage: `url(${src})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    filter: 'grayscale(20%) blur(0.5px)',
+                    opacity: 0.6
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div style={{ 
+            width: '100%', 
+            maxWidth: '42rem',
+            position: 'relative',
+            zIndex: 2
+          }}>
+            <div style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(10px)',
+              borderRadius: '1.5rem',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              padding: 'clamp(2rem, 4vw, 3rem)',
+              animation: 'warpBox 2s ease-in-out infinite alternate'
+            }}>
+              <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                <h1 style={{ 
+                  fontSize: 'clamp(3rem, 8vw, 4rem)', 
+                  fontWeight: 'bold', 
+                  fontFamily: '"Space Grotesk", "Inter", system-ui, -apple-system, sans-serif',
+                  background: 'linear-gradient(45deg, #3b82f6, #8b5cf6, #06b6d4, #10b981, #6366f1, #3b82f6)',
+                  backgroundSize: '300% 300%',
+                  backgroundClip: 'text',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  animation: 'gradientFlow 10s ease-in-out infinite',
+                  marginBottom: '1.5rem',
+                  margin: '0 0 1.5rem 0',
+                  letterSpacing: '-0.02em'
+                }}>Mapress</h1>
+                
+                {/* Loading Bar */}
+                <div style={{
+                  width: '100%',
+                  height: '8px',
+                  backgroundColor: '#e5e7eb',
+                  borderRadius: '4px',
+                  overflow: 'hidden',
+                  marginBottom: '1rem'
+                }}>
+                  <div style={{
+                    height: '100%',
+                    background: 'linear-gradient(45deg, #3b82f6, #8b5cf6, #06b6d4, #10b981, #6366f1, #3b82f6)',
+                    backgroundSize: '300% 300%',
+                    animation: 'gradientFlow 2s ease-in-out infinite, loadingProgress 10s ease-in-out forwards',
+                    borderRadius: '4px'
+                  }}></div>
+                </div>
+
+                {/* Animated Loading Text */}
+                <div style={{
+                  color: '#6b7280',
+                  fontSize: 'clamp(0.875rem, 2vw, 1rem)',
+                  minHeight: '1.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <span style={{
+                    animation: 'fadeInOut 2s ease-in-out infinite'
+                  }}>
+                    {status === 'search' && '🔍 Searching the latest news...'}
+                    {status === 'fetch' && '📥 Downloading article content...'}
+                    {status === 'cluster' && '🔗 Identifying story connections...'}
+                    {status === 'layout' && '🗺️ Creating nodes and connections...'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Map view (appState === "map")
+  return (
+    <MapViewPage
+      query={query}
+      nodes={nodes}
+      edges={edges}
+      sources={sources}
+      onBack={handleBack}
+    />
   );
 }

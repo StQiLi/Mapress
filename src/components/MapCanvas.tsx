@@ -176,6 +176,7 @@ export default function MapCanvas({ nodes, edges, onNodeSelect, isLoading, selec
   const [reactFlowEdges, setEdges, onEdgesChange] = useEdgesState([]);
   const [isLayouting, setIsLayouting] = useState(false);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const layoutTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const runLayout = useCallback(async () => {
     if (reactFlowNodes.length === 0) {
@@ -184,6 +185,22 @@ export default function MapCanvas({ nodes, edges, onNodeSelect, isLoading, selec
 
     setIsLayouting(true);
     try {
+      // Validate all nodes and edges before passing to ELK
+      const validNodes = reactFlowNodes.filter(node => node && node.id);
+      const validNodeIds = new Set(validNodes.map(node => node.id));
+      
+      // Filter edges to only include those with valid source and target nodes
+      const validEdges = reactFlowEdges.filter(edge => 
+        edge && 
+        edge.id && 
+        edge.source && 
+        edge.target && 
+        validNodeIds.has(edge.source) && 
+        validNodeIds.has(edge.target)
+      );
+
+      console.log(`ELK Layout: ${validNodes.length} nodes, ${validEdges.length} edges`);
+      
       const graph = {
         id: "root",
         layoutOptions: {
@@ -195,12 +212,12 @@ export default function MapCanvas({ nodes, edges, onNodeSelect, isLoading, selec
           "elk.force.repulsion": "1000",
           "elk.force.gravity": "0.1",
         },
-        children: reactFlowNodes.filter(node => node && node.id).map((node) => ({
+        children: validNodes.map((node) => ({
           id: node.id,
           width: node.type === 'category' ? 120 : 80,
           height: node.type === 'category' ? 120 : 80,
         })),
-        edges: reactFlowEdges.map((edge) => ({
+        edges: validEdges.map((edge) => ({
           id: edge.id,
           sources: [edge.source],
           targets: [edge.target],
@@ -268,7 +285,7 @@ export default function MapCanvas({ nodes, edges, onNodeSelect, isLoading, selec
     setTimeout(() => {
       if (reactFlowInstance && node.position) {
         console.log("Centering on clicked node:", node.id, node.position);
-        reactFlowInstance.setCenter(node.position.x + 275, node.position.y + 150, {
+        reactFlowInstance.setCenter(node.position.x + 275, node.position.y + 90, {
           zoom: 2.0,
           duration: 600,
         });
@@ -473,10 +490,7 @@ export default function MapCanvas({ nodes, edges, onNodeSelect, isLoading, selec
       console.log("Setting edges:", enhancedEdges);
       setEdges(enhancedEdges);
       
-      // Skip physics simulation for now to avoid infinite loops
-      // setTimeout(() => {
-      //   initializeSimulation();
-      // }, 100);
+      // No auto layout - just use the nodes as they are
     }
   }, [nodes, edges, setNodes, setEdges]);
 
@@ -485,6 +499,9 @@ export default function MapCanvas({ nodes, edges, onNodeSelect, isLoading, selec
     return () => {
       if (simulation.current) {
         simulation.current.stop();
+      }
+      if (layoutTimeoutRef.current) {
+        clearTimeout(layoutTimeoutRef.current);
       }
     };
   }, []);
@@ -628,8 +645,14 @@ export default function MapCanvas({ nodes, edges, onNodeSelect, isLoading, selec
     }
   }, [selectedNodeId, reactFlowInstance, reactFlowNodes]);
 
+
   return (
-    <div className="h-full relative">
+    <div style={{ 
+      height: '100%', 
+      width: '100%', 
+      position: 'relative',
+      backgroundColor: '#f3f4f6'
+    }}>
       <ReactFlow
         nodes={reactFlowNodes}
         edges={reactFlowEdges}
@@ -642,7 +665,7 @@ export default function MapCanvas({ nodes, edges, onNodeSelect, isLoading, selec
         onInit={setReactFlowInstance}
         connectionMode={ConnectionMode.Loose}
         nodeTypes={nodeTypes}
-        fitView={false}
+        fitView={true}
         fitViewOptions={{ padding: 0.1 }}
         defaultEdgeOptions={{
           style: { strokeWidth: 4, stroke: '#ef4444' },
@@ -655,117 +678,118 @@ export default function MapCanvas({ nodes, edges, onNodeSelect, isLoading, selec
         selectNodesOnDrag={false}
         panOnScroll={true}
         zoomOnScroll={true}
+        style={{ width: '100%', height: '100%' }}
       >
-        <Background 
-          gap={20} 
-          size={1} 
-          color="#cbd5e1"
-          style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)' }}
-        />
-        <Controls showInteractive={false} showZoom={false} showFitView={false}>
-          <button
-            onClick={runLayout}
-            disabled={isLayouting || reactFlowNodes.length === 0}
-            className="px-4 py-2 text-sm font-semibold rounded-lg bg-white text-gray-800 hover:bg-gray-100 hover:shadow-md transition-all duration-300 ease-in-out min-w-[100px] text-center mr-2"
-            style={{
-              padding: '0.5rem 1rem',
-              fontSize: '0.875rem',
-              fontWeight: '600',
-              borderRadius: '0.5rem',
-              backgroundColor: 'white',
-              color: '#1f2937',
-              transition: 'all 0.3s ease-in-out',
-              minWidth: '100px',
-              textAlign: 'center',
-              cursor: 'pointer',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              border: 'none',
-              opacity: (isLayouting || reactFlowNodes.length === 0) ? 0.5 : 1
-            }}
-          >
-            {isLayouting ? "Layouting..." : "Auto Layout"}
-          </button>
-          
-          {/* Custom Fit View Button */}
-          <button
-            onClick={() => reactFlowInstance?.fitView({ padding: 0.2 })}
-            disabled={reactFlowNodes.length === 0}
-            className="px-4 py-2 text-sm font-semibold rounded-lg bg-white text-gray-800 hover:bg-gray-100 hover:shadow-md transition-all duration-300 ease-in-out min-w-[100px] text-center mr-2"
-            style={{
-              padding: '0.5rem 1rem',
-              fontSize: '0.875rem',
-              fontWeight: '600',
-              borderRadius: '0.5rem',
-              backgroundColor: 'white',
-              color: '#1f2937',
-              transition: 'all 0.3s ease-in-out',
-              minWidth: '100px',
-              textAlign: 'center',
-              cursor: 'pointer',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              border: 'none',
-              opacity: reactFlowNodes.length === 0 ? 0.5 : 1
-            }}
-          >
-            Fit View
-          </button>
-          
-          {/* Custom Zoom In Button */}
-          <button
-            onClick={() => reactFlowInstance?.zoomIn({ duration: 300 })}
-            className="px-3 py-2 text-sm font-semibold rounded-lg bg-white text-gray-800 hover:bg-gray-100 hover:shadow-md transition-all duration-300 ease-in-out min-w-[60px] text-center mr-2"
-            style={{
-              padding: '0.5rem 0.75rem',
-              fontSize: '0.875rem',
-              fontWeight: '600',
-              borderRadius: '0.5rem',
-              backgroundColor: 'white',
-              color: '#1f2937',
-              transition: 'all 0.3s ease-in-out',
-              minWidth: '60px',
-              textAlign: 'center',
-              cursor: 'pointer',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              border: 'none'
-            }}
-            title="Zoom In"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"/>
-              <path d="m21 21-4.35-4.35"/>
-              <line x1="11" y1="8" x2="11" y2="14"/>
-              <line x1="8" y1="11" x2="14" y2="11"/>
-            </svg>
-          </button>
-          
-          {/* Custom Zoom Out Button */}
-          <button
-            onClick={() => reactFlowInstance?.zoomOut({ duration: 300 })}
-            className="px-3 py-2 text-sm font-semibold rounded-lg bg-white text-gray-800 hover:bg-gray-100 hover:shadow-md transition-all duration-300 ease-in-out min-w-[60px] text-center"
-            style={{
-              padding: '0.5rem 0.75rem',
-              fontSize: '0.875rem',
-              fontWeight: '600',
-              borderRadius: '0.5rem',
-              backgroundColor: 'white',
-              color: '#1f2937',
-              transition: 'all 0.3s ease-in-out',
-              minWidth: '60px',
-              textAlign: 'center',
-              cursor: 'pointer',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              border: 'none'
-            }}
-            title="Zoom Out"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"/>
-              <path d="m21 21-4.35-4.35"/>
-              <line x1="8" y1="11" x2="14" y2="11"/>
-            </svg>
-          </button>
-        </Controls>
-      </ReactFlow>
+          <Background 
+            gap={20} 
+            size={1} 
+            color="#cbd5e1"
+            style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)' }}
+          />
+          <Controls showInteractive={false} showZoom={false} showFitView={false}>
+            <button
+              onClick={runLayout}
+              disabled={isLayouting || reactFlowNodes.length === 0}
+              className="px-4 py-2 text-sm font-semibold rounded-lg bg-white text-gray-800 hover:bg-gray-100 hover:shadow-md transition-all duration-300 ease-in-out min-w-[100px] text-center mr-2"
+              style={{
+                padding: '0.5rem 1rem',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                borderRadius: '0.5rem',
+                backgroundColor: 'white',
+                color: '#1f2937',
+                transition: 'all 0.3s ease-in-out',
+                minWidth: '100px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                border: 'none',
+                opacity: (isLayouting || reactFlowNodes.length === 0) ? 0.5 : 1
+              }}
+            >
+              {isLayouting ? "Layouting..." : "Auto Layout"}
+            </button>
+            
+            {/* Custom Fit View Button */}
+            <button
+              onClick={() => reactFlowInstance?.fitView({ padding: 0.2 })}
+              disabled={reactFlowNodes.length === 0}
+              className="px-4 py-2 text-sm font-semibold rounded-lg bg-white text-gray-800 hover:bg-gray-100 hover:shadow-md transition-all duration-300 ease-in-out min-w-[100px] text-center mr-2"
+              style={{
+                padding: '0.5rem 1rem',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                borderRadius: '0.5rem',
+                backgroundColor: 'white',
+                color: '#1f2937',
+                transition: 'all 0.3s ease-in-out',
+                minWidth: '100px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                border: 'none',
+                opacity: reactFlowNodes.length === 0 ? 0.5 : 1
+              }}
+            >
+              Fit View
+            </button>
+            
+            {/* Custom Zoom In Button */}
+            <button
+              onClick={() => reactFlowInstance?.zoomIn({ duration: 300 })}
+              className="px-3 py-2 text-sm font-semibold rounded-lg bg-white text-gray-800 hover:bg-gray-100 hover:shadow-md transition-all duration-300 ease-in-out min-w-[60px] text-center mr-2"
+              style={{
+                padding: '0.5rem 0.75rem',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                borderRadius: '0.5rem',
+                backgroundColor: 'white',
+                color: '#1f2937',
+                transition: 'all 0.3s ease-in-out',
+                minWidth: '60px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                border: 'none'
+              }}
+              title="Zoom In"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.35-4.35"/>
+                <line x1="11" y1="8" x2="11" y2="14"/>
+                <line x1="8" y1="11" x2="14" y2="11"/>
+              </svg>
+            </button>
+            
+            {/* Custom Zoom Out Button */}
+            <button
+              onClick={() => reactFlowInstance?.zoomOut({ duration: 300 })}
+              className="px-3 py-2 text-sm font-semibold rounded-lg bg-white text-gray-800 hover:bg-gray-100 hover:shadow-md transition-all duration-300 ease-in-out min-w-[60px] text-center"
+              style={{
+                padding: '0.5rem 0.75rem',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                borderRadius: '0.5rem',
+                backgroundColor: 'white',
+                color: '#1f2937',
+                transition: 'all 0.3s ease-in-out',
+                minWidth: '60px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                border: 'none'
+              }}
+              title="Zoom Out"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.35-4.35"/>
+                <line x1="8" y1="11" x2="14" y2="11"/>
+              </svg>
+            </button>
+          </Controls>
+        </ReactFlow>
       
       {isLoading && (
         <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center">

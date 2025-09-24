@@ -59,13 +59,16 @@ export default function Sidebar({ node, onClose }: SidebarProps) {
                  return (
                    <span 
                      key={index} 
-                     className="text-white text-xs font-medium shadow-sm"
+                     className="text-white text-xs font-bold shadow-sm"
                      style={{
                        backgroundColor: getTopicColor(topic),
                        padding: '6px 12px',
                        borderRadius: '6px',
                        display: 'inline-block',
-                       margin: '2px'
+                       margin: '2px',
+                       fontWeight: 'bold',
+                       fontSize: '12px',
+                       fontFamily: 'system-ui, -apple-system, sans-serif'
                      }}
                    >
                      {topic}
