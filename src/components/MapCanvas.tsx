@@ -268,7 +268,7 @@ export default function MapCanvas({ nodes, edges, onNodeSelect, isLoading, selec
     setTimeout(() => {
       if (reactFlowInstance && node.position) {
         console.log("Centering on clicked node:", node.id, node.position);
-        reactFlowInstance.setCenter(node.position.x + 175, node.position.y + 100, {
+        reactFlowInstance.setCenter(node.position.x + 275, node.position.y + 150, {
           zoom: 2.0,
           duration: 600,
         });

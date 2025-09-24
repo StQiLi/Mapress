@@ -4,7 +4,6 @@ import { useState, useCallback, useMemo } from "react";
 import MapCanvas from "@/components/MapCanvas";
 import Sidebar from "@/components/Sidebar";
 import StatusBar from "@/components/StatusBar";
-import ExportButtons from "@/components/ExportButtons";
 
 export default function Home() {
   const [query, setQuery] = useState("");
@@ -363,7 +362,7 @@ export default function Home() {
               top: 0,
               right: 0,
               height: '100%',
-              width: '384px',
+              width: '50vw',
               backgroundColor: '#ffffff',
               borderLeft: '1px solid #e5e7eb',
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
@@ -377,14 +376,6 @@ export default function Home() {
         )}
       </div>
 
-      {/* Export Buttons */}
-      {nodes.length > 0 && (
-        <div className="bg-white border-t border-gray-200 p-4">
-          <div className="max-w-7xl mx-auto">
-            <ExportButtons nodes={nodes} edges={edges} />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
