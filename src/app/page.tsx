@@ -408,10 +408,8 @@ export default function Home() {
   // Map view (appState === "map")
   return (
     <MapViewPage
-      query={query}
       nodes={nodes}
       edges={edges}
-      sources={sources}
       onBack={handleBack}
     />
   );

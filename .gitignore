@@ -92,3 +92,6 @@ dist
 # Temporary folders
 tmp/
 temp/
+
+# TypeScript build info
+tsconfig.tsbuildinfo
