@@ -30,6 +30,16 @@ async function callFetchTool(url, maxLength = 12000) {
 const app = express();
 app.use(express.json());
 
+// Health check endpoint (Render expects /healthz)
+app.get("/healthz", (req, res) => {
+  res.status(200).json({ status: "healthy", service: "mcp-fetch" });
+});
+
+// Also keep /health for compatibility
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "healthy", service: "mcp-fetch" });
+});
+
 app.post("/fetch", async (req, res) => {
   const { url } = req.body ?? {};
   if (!url) return res.status(400).json({ error: "url required" });
@@ -41,4 +51,5 @@ app.post("/fetch", async (req, res) => {
   }
 });
 
-app.listen(3000, () => console.log("Fetch adapter on :3000"));
+const PORT = process.env.PORT || 8081;
+app.listen(PORT, '0.0.0.0', () => console.log(`Fetch adapter on :${PORT}`));

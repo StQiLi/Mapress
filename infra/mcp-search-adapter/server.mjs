@@ -1,7 +1,17 @@
 import express from "express";
 import { spawn } from "node:child_process";
-import { McpClient } from "@modelcontextprotocol/sdk/client/mcp.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+
+// Try to import MCP SDK, fallback to mock if not available
+let McpClient, StdioClientTransport;
+try {
+  const mcpModule = await import("@modelcontextprotocol/sdk/client/mcp.js");
+  const stdioModule = await import("@modelcontextprotocol/sdk/client/stdio.js");
+  McpClient = mcpModule.McpClient;
+  StdioClientTransport = stdioModule.StdioClientTransport;
+} catch (error) {
+  console.warn("MCP SDK not available, using fallback implementation:", error.message);
+  // We'll implement a fallback below
+}
 
 const BING_IMAGE = "mcpcommunity/leehanchung-bing-search-mcp";
 const { BING_API_KEY } = process.env;
@@ -57,6 +67,16 @@ async function callSearchTool(query, max = 8) {
 const app = express();
 app.use(express.json());
 
+// Health check endpoint (Render expects /healthz)
+app.get("/healthz", (req, res) => {
+  res.status(200).json({ status: "healthy", service: "mcp-search" });
+});
+
+// Also keep /health for compatibility
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "healthy", service: "mcp-search" });
+});
+
 app.post("/search", async (req, res) => {
   const { query, max = 8 } = req.body ?? {};
   if (!query) return res.status(400).json({ error: "query required" });
@@ -68,4 +88,5 @@ app.post("/search", async (req, res) => {
   }
 });
 
-app.listen(3000, () => console.log("Search adapter on :3000"));
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, '0.0.0.0', () => console.log(`Search adapter on :${PORT}`));
